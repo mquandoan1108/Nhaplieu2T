@@ -27,14 +27,22 @@ export function TopBar({
 }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 h-14 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      <div className="max-w-[1440px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-8">
-        <button
-          type="button"
-          onClick={() => onNavigate('driver')}
-          className="font-display text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 rounded"
-        >
-          Nhật Ký Lộ Trình
-        </button>
+      <div className="max-w-[1440px] mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4 sm:gap-8">
+        <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => onNavigate('driver')}
+            className="font-display text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 rounded leading-tight"
+          >
+            Nhật Ký Lộ Trình
+          </button>
+          <span className="hidden sm:inline text-slate-300 select-none" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-[11px] sm:text-xs font-medium text-emerald-700 tracking-tight whitespace-nowrap truncate">
+            Phát triển bởi <span className="font-semibold text-emerald-800">Minh Quan Doan</span>
+          </span>
+        </div>
 
         {adminUsername ? (
           <nav
