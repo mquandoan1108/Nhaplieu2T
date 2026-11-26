@@ -1,7 +1,7 @@
 import {
   createDefaultVehicles,
   PublicVehicleOption,
-} from '../data/defaultVehicles';
+} from '../catalog/defaultVehicles';
 import {
   formatMinutesToDuration,
   isDiemCuoiCustomer,

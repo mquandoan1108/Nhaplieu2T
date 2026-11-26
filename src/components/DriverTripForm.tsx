@@ -23,7 +23,7 @@ import {
   TRIP_TYPE_LABELS,
   TRIP_TYPE_OPTIONS,
 } from '../types/fleet';
-import { DEFAULT_PUBLIC_VEHICLES, PublicVehicleOption } from '../data/defaultVehicles';
+import { DEFAULT_PUBLIC_VEHICLES, PublicVehicleOption } from '../catalog/defaultVehicles';
 import { fetchPublicVehicles, submitPublicTrip } from '../utils/backendClient';
 import { BksInput } from './BksInput';
 import { PostOfficeInput } from './PostOfficeInput';

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { POST_OFFICES, PostOfficeItem } from '../data/postOffices';
+import { POST_OFFICES, PostOfficeItem } from '../catalog/postOffices';
 
 interface PostOfficeInputProps {
   id?: string;
