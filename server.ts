@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import crypto from 'node:crypto';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createServer as createViteServer } from 'vite';
@@ -910,15 +911,26 @@ async function startServer() {
     }
   });
 
+  // Return JSON 404 for unknown /api routes instead of falling through to SPA HTML
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Đường dẫn API không tồn tại.' });
+  });
+
   // Vite integration in dev vs static dist in production
-  if (process.env.NODE_ENV !== 'production') {
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const hasDistBuild = fsSync.existsSync(path.join(distDir, 'index.html'));
+  const isDevServer =
+    process.env.NODE_ENV !== 'production' &&
+    process.env.npm_lifecycle_event !== 'start' &&
+    !(process.env.NODE_ENV !== 'development' && hasDistBuild);
+
+  if (isDevServer) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distDir, 'index.html'));

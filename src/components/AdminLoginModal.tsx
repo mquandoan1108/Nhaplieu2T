@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, Eye, EyeOff, Lock, X } from 'lucide-react';
+import { getApiFailureMessage, safeParseJson } from '../utils/safeFetchJson';
 
 interface AdminLoginModalProps {
   open: boolean;
@@ -27,9 +28,9 @@ export function AdminLoginModal({ open, onClose, onSuccess }: AdminLoginModalPro
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
       });
-      const data = (await res.json()) as { token?: string; username?: string; error?: string };
-      if (!res.ok || !data.token || !data.username) {
-        setError(data.error || 'Đăng nhập không thành công.');
+      const data = await safeParseJson<{ token?: string; username?: string; error?: string }>(res);
+      if (!res.ok || !data?.token || !data?.username) {
+        setError(getApiFailureMessage(res.status, data?.error, 'Đăng nhập không thành công.'));
         return;
       }
       setPassword('');

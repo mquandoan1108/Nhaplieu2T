@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BarChart3, FileSpreadsheet, Settings, Truck } from 'lucide-react';
+import { safeParseJson, getApiFailureMessage } from '../utils/safeFetchJson';
 import { TripRecord, Vehicle } from '../types/fleet';
 import { AppRoute } from './TopBar';
 import { TripSheetTable } from './TripSheetTable';
@@ -56,17 +57,22 @@ export function AdminDashboard({
         authFetch('/api/admin/settings/sheet'),
       ]);
 
-      const tripsData = (await tripsRes.json()) as { trips?: TripRecord[] };
-      const vehiclesData = (await vehiclesRes.json()) as { vehicles?: Vehicle[] };
-      const settingsData = (await settingsRes.json()) as {
-        appsScriptUrl?: string;
-        lastTestedAt?: string;
-      };
+      const firstBad = [tripsRes, vehiclesRes, settingsRes].find((r) => !r.ok);
+      if (firstBad) {
+        const errData = await safeParseJson<{ error?: string }>(firstBad);
+        throw new Error(getApiFailureMessage(firstBad.status, errData?.error, 'Không thể tải dữ liệu quản lý.'));
+      }
 
-      setTrips(Array.isArray(tripsData.trips) ? tripsData.trips : []);
-      setVehicles(Array.isArray(vehiclesData.vehicles) ? vehiclesData.vehicles : []);
-      setAppsScriptUrl(settingsData.appsScriptUrl || '');
-      setLastTestedAt(settingsData.lastTestedAt || '');
+      const [tripsData, vehiclesData, settingsData] = await Promise.all([
+        safeParseJson<{ trips?: TripRecord[] }>(tripsRes),
+        safeParseJson<{ vehicles?: Vehicle[] }>(vehiclesRes),
+        safeParseJson<{ appsScriptUrl?: string; lastTestedAt?: string }>(settingsRes),
+      ]);
+
+      setTrips(Array.isArray(tripsData?.trips) ? tripsData.trips : []);
+      setVehicles(Array.isArray(vehiclesData?.vehicles) ? vehiclesData.vehicles : []);
+      setAppsScriptUrl(settingsData?.appsScriptUrl || '');
+      setLastTestedAt(settingsData?.lastTestedAt || '');
     } catch (err) {
       setErrorBanner(err instanceof Error ? err.message : 'Không thể tải dữ liệu quản lý.');
     } finally {
