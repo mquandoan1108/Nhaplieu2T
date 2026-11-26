@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BarChart3, FileSpreadsheet, Settings, Truck } from 'lucide-react';
-import { safeParseJson, getApiFailureMessage } from '../utils/safeFetchJson';
+import {
+  adminAddVehicle,
+  adminDeleteTrip,
+  adminDeleteVehicle,
+  adminSaveSheetUrl,
+  adminSyncPendingTrips,
+  adminSyncTrip,
+  adminTestSheetUrl,
+  adminUpdateTrip,
+  adminUpdateVehicle,
+  loadAdminDashboardData,
+} from '../utils/backendClient';
 import { TripRecord, Vehicle } from '../types/fleet';
 import { AppRoute } from './TopBar';
 import { TripSheetTable } from './TripSheetTable';
@@ -28,102 +39,51 @@ export function AdminDashboard({
   const [loading, setLoading] = useState(true);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
-  const authFetch = useCallback(
-    async (url: string, options: RequestInit = {}) => {
-      const res = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(options.headers || {}),
-        },
-      });
-      if (res.status === 401) {
-        onSessionExpired();
-        throw new Error('Phiên đăng nhập đã hết hạn.');
-      }
-      return res;
-    },
-    [token, onSessionExpired]
-  );
-
   const loadAll = useCallback(async () => {
     setLoading(true);
     setErrorBanner(null);
     try {
-      const [tripsRes, vehiclesRes, settingsRes] = await Promise.all([
-        authFetch('/api/admin/trips'),
-        authFetch('/api/admin/vehicles'),
-        authFetch('/api/admin/settings/sheet'),
-      ]);
-
-      const firstBad = [tripsRes, vehiclesRes, settingsRes].find((r) => !r.ok);
-      if (firstBad) {
-        const errData = await safeParseJson<{ error?: string }>(firstBad);
-        throw new Error(getApiFailureMessage(firstBad.status, errData?.error, 'Không thể tải dữ liệu quản lý.'));
-      }
-
-      const [tripsData, vehiclesData, settingsData] = await Promise.all([
-        safeParseJson<{ trips?: TripRecord[] }>(tripsRes),
-        safeParseJson<{ vehicles?: Vehicle[] }>(vehiclesRes),
-        safeParseJson<{ appsScriptUrl?: string; lastTestedAt?: string }>(settingsRes),
-      ]);
-
-      setTrips(Array.isArray(tripsData?.trips) ? tripsData.trips : []);
-      setVehicles(Array.isArray(vehiclesData?.vehicles) ? vehiclesData.vehicles : []);
-      setAppsScriptUrl(settingsData?.appsScriptUrl || '');
-      setLastTestedAt(settingsData?.lastTestedAt || '');
+      const data = await loadAdminDashboardData(token, onSessionExpired);
+      setTrips(data.trips);
+      setVehicles(data.vehicles);
+      setAppsScriptUrl(data.appsScriptUrl);
+      setLastTestedAt(data.lastTestedAt);
     } catch (err) {
       setErrorBanner(err instanceof Error ? err.message : 'Không thể tải dữ liệu quản lý.');
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  }, [token, onSessionExpired]);
 
   useEffect(() => {
     loadAll();
   }, [loadAll]);
 
   const handleUpdateTrip = async (tripId: string, payload: Record<string, unknown>) => {
-    const res = await authFetch(`/api/admin/trips/${tripId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    const data = (await res.json()) as { trip?: TripRecord; error?: string };
-    if (!res.ok || !data.trip) {
-      throw new Error(data.error || 'Không thể cập nhật chuyến xe.');
-    }
-    setTrips((prev) => prev.map((t) => (t.id === tripId ? data.trip! : t)));
+    const updated = await adminUpdateTrip(token, tripId, payload, onSessionExpired);
+    setTrips((prev) => prev.map((t) => (t.id === tripId ? updated : t)));
   };
 
   const handleDeleteTrip = async (tripId: string) => {
-    const res = await authFetch(`/api/admin/trips/${tripId}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string };
-      throw new Error(data.error || 'Không thể xóa chuyến xe.');
-    }
+    await adminDeleteTrip(token, tripId, onSessionExpired);
     setTrips((prev) => prev.filter((t) => t.id !== tripId));
   };
 
   const handleSyncTrip = async (tripId: string) => {
-    const res = await authFetch(`/api/admin/trips/${tripId}/sync`, { method: 'POST' });
-    const data = (await res.json()) as { trip?: TripRecord; error?: string };
-    if (!res.ok || !data.trip) {
-      setErrorBanner(data.error || 'Đồng bộ Google Sheet thất bại.');
-      return;
+    try {
+      const updated = await adminSyncTrip(token, tripId, onSessionExpired);
+      setTrips((prev) => prev.map((t) => (t.id === tripId ? updated : t)));
+    } catch (err) {
+      setErrorBanner(err instanceof Error ? err.message : 'Đồng bộ Google Sheet thất bại.');
     }
-    setTrips((prev) => prev.map((t) => (t.id === tripId ? data.trip! : t)));
   };
 
   const handleSyncPending = async () => {
-    const res = await authFetch('/api/admin/trips/sync-pending', { method: 'POST' });
-    const data = (await res.json()) as { trips?: TripRecord[]; error?: string };
-    if (!res.ok) {
-      setErrorBanner(data.error || 'Đồng bộ hàng loạt thất bại.');
-      return;
-    }
-    if (Array.isArray(data.trips)) {
-      setTrips(data.trips);
+    try {
+      const updatedTrips = await adminSyncPendingTrips(token, onSessionExpired);
+      setTrips(updatedTrips);
+    } catch (err) {
+      setErrorBanner(err instanceof Error ? err.message : 'Đồng bộ hàng loạt thất bại.');
     }
   };
 
@@ -132,65 +92,33 @@ export function AdminDashboard({
     label: string;
     coldHourDailyQuota: number;
   }) => {
-    const res = await authFetch('/api/admin/vehicles', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    const data = (await res.json()) as { vehicle?: Vehicle; error?: string };
-    if (!res.ok || !data.vehicle) {
-      throw new Error(data.error || 'Không thể thêm xe.');
-    }
-    setVehicles((prev) => [...prev, data.vehicle!]);
+    const added = await adminAddVehicle(token, payload, onSessionExpired);
+    setVehicles((prev) => [...prev, added]);
   };
 
   const handleUpdateVehicle = async (
     id: string,
     payload: { bks?: string; label?: string; coldHourDailyQuota?: number; active?: boolean }
   ) => {
-    const res = await authFetch(`/api/admin/vehicles/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    const data = (await res.json()) as { vehicle?: Vehicle; error?: string };
-    if (!res.ok || !data.vehicle) {
-      throw new Error(data.error || 'Không thể cập nhật xe.');
-    }
-    setVehicles((prev) => prev.map((v) => (v.id === id ? data.vehicle! : v)));
+    const updated = await adminUpdateVehicle(token, id, payload, onSessionExpired);
+    setVehicles((prev) => prev.map((v) => (v.id === id ? updated : v)));
   };
 
   const handleDeleteVehicle = async (id: string) => {
-    const res = await authFetch(`/api/admin/vehicles/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string };
-      throw new Error(data.error || 'Không thể xóa xe.');
-    }
+    await adminDeleteVehicle(token, id, onSessionExpired);
     setVehicles((prev) => prev.filter((v) => v.id !== id));
   };
 
   const handleSaveSheetUrl = async (url: string) => {
-    const res = await authFetch('/api/admin/settings/sheet', {
-      method: 'PUT',
-      body: JSON.stringify({ appsScriptUrl: url }),
-    });
-    const data = (await res.json()) as { appsScriptUrl?: string; error?: string };
-    if (!res.ok) {
-      throw new Error(data.error || 'Không thể lưu URL.');
-    }
-    setAppsScriptUrl(data.appsScriptUrl || '');
+    const savedUrl = await adminSaveSheetUrl(token, url, onSessionExpired);
+    setAppsScriptUrl(savedUrl);
   };
 
   const handleTestSheetUrl = async (url: string): Promise<string> => {
-    const res = await authFetch('/api/admin/settings/sheet/test', {
-      method: 'POST',
-      body: JSON.stringify({ appsScriptUrl: url }),
-    });
-    const data = (await res.json()) as { message?: string; lastTestedAt?: string; error?: string };
-    if (!res.ok) {
-      throw new Error(data.error || 'Kiểm tra kết nối thất bại.');
-    }
+    const res = await adminTestSheetUrl(token, url, onSessionExpired);
     setAppsScriptUrl(url);
-    if (data.lastTestedAt) setLastTestedAt(data.lastTestedAt);
-    return data.message || 'Kết nối thành công!';
+    if (res.lastTestedAt) setLastTestedAt(res.lastTestedAt);
+    return res.message;
   };
 
   const tabs: Array<{ id: Exclude<AppRoute, 'driver'>; label: string; icon: typeof FileSpreadsheet }> = [

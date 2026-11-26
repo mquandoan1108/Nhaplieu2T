@@ -931,6 +931,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    app.use('/Nhaplieu2T', express.static(distDir));
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distDir, 'index.html'));

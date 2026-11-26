@@ -2,5 +2,7 @@
   "name": "Nhật Ký Lộ Trình — Quản Lý Km & Giờ Lạnh",
   "description": "Ứng dụng nhập liệu km, giờ lạnh tích lũy cho lái xe và đồng bộ Google Sheet thời gian thực kèm quản lý đội xe.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

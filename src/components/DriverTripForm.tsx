@@ -24,7 +24,7 @@ import {
   TRIP_TYPE_OPTIONS,
 } from '../types/fleet';
 import { DEFAULT_PUBLIC_VEHICLES, PublicVehicleOption } from '../data/defaultVehicles';
-import { getApiFailureMessage, safeParseJson } from '../utils/safeFetchJson';
+import { fetchPublicVehicles, submitPublicTrip } from '../utils/backendClient';
 import { BksInput } from './BksInput';
 import { PostOfficeInput } from './PostOfficeInput';
 
@@ -72,7 +72,6 @@ function createInitialForm(defaultBks = ''): FormState {
 export function DriverTripForm() {
   const [vehicles, setVehicles] = useState<PublicVehicle[]>(DEFAULT_PUBLIC_VEHICLES);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
-  const [staticPreviewMode, setStaticPreviewMode] = useState(false);
   const [form, setForm] = useState<FormState>(() => createInitialForm());
   const [bksTouched, setBksTouched] = useState(false);
   const [hasSecondDriver, setHasSecondDriver] = useState(false);
@@ -82,21 +81,15 @@ export function DriverTripForm() {
 
   useEffect(() => {
     let active = true;
-    fetch('/api/public/vehicles')
-      .then(async (res) => {
+    fetchPublicVehicles()
+      .then((list) => {
         if (!active) return;
-        if (res.status === 404 || res.status === 405) {
-          setStaticPreviewMode(true);
-          return;
-        }
-        const data = await safeParseJson<{ vehicles?: PublicVehicle[] }>(res);
-        if (res.ok && data && Array.isArray(data.vehicles)) {
-          setVehicles(data.vehicles);
-          setStaticPreviewMode(false);
+        if (Array.isArray(list) && list.length > 0) {
+          setVehicles(list);
         }
       })
       .catch(() => {
-        // Fallback fleet list remains available; server validates on submit
+        // Fallback fleet list remains available
       })
       .finally(() => {
         if (active) setLoadingVehicles(false);
@@ -232,44 +225,30 @@ export function DriverTripForm() {
 
     setSubmitting(true);
     try {
-      const response = await fetch('/api/public/trips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startDate: form.startDate,
-          endDate: form.endDate,
-          bks: normalizedBks,
-          tripType: form.tripType,
-          driver1: form.driver1.trim(),
-          driver2: hasSecondDriver ? form.driver2.trim() : '',
-          mcx: form.tripType === 'pvdc' ? '' : form.mcx.trim(),
-          customerName: form.tripType === 'pvdc' ? '' : form.customerName.trim(),
-          servicePostOffice: showPostOffice ? form.servicePostOffice.trim() : '',
-          origin: form.origin.trim(),
-          destination: form.destination.trim(),
-          kmStart: Number(form.kmStart),
-          kmEnd: Number(form.kmEnd),
-          coldStart: form.tripType === 'kinh_doanh' ? form.coldStart.trim() : '',
-          coldEnd: form.tripType === 'kinh_doanh' ? form.coldEnd.trim() : '',
-        }),
+      const trip = await submitPublicTrip({
+        startDate: form.startDate,
+        endDate: form.endDate,
+        bks: normalizedBks,
+        tripType: form.tripType,
+        driver1: form.driver1.trim(),
+        driver2: hasSecondDriver ? form.driver2.trim() : '',
+        mcx: form.tripType === 'pvdc' ? '' : form.mcx.trim(),
+        customerName: form.tripType === 'pvdc' ? '' : form.customerName.trim(),
+        servicePostOffice: showPostOffice ? form.servicePostOffice.trim() : '',
+        origin: form.origin.trim(),
+        destination: form.destination.trim(),
+        kmStart: Number(form.kmStart),
+        kmEnd: Number(form.kmEnd),
+        coldStart: form.tripType === 'kinh_doanh' ? form.coldStart.trim() : '',
+        coldEnd: form.tripType === 'kinh_doanh' ? form.coldEnd.trim() : '',
       });
 
-      const data = await safeParseJson<{ trip?: TripRecord; error?: string }>(response);
-      if (!response.ok || !data?.trip) {
-        if (response.status === 404 || response.status === 405) {
-          setStaticPreviewMode(true);
-        }
-        setErrorMessage(
-          getApiFailureMessage(response.status, data?.error, 'Không thể lưu thông tin chuyến xe.')
-        );
-        return;
-      }
-
-      setStaticPreviewMode(false);
-      setSavedTrip(data.trip);
+      setSavedTrip(trip);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch {
-      setErrorMessage('Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng hoặc thử lại.');
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Lỗi kết nối máy chủ. Vui lòng kiểm tra mạng hoặc thử lại.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -406,19 +385,6 @@ export function DriverTripForm() {
           Lái xe nhập đầy đủ thông tin chuyến đi, chỉ số Km đầu/cuối và đồng hồ giờ lạnh lũy kế để cập nhật trực tiếp về bảng điều hành.
         </p>
       </div>
-
-      {staticPreviewMode && !errorMessage && (
-        <div
-          role="alert"
-          className="mb-6 flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm"
-        >
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-          <span>
-            Liên kết này đang chạy ở chế độ xem trước tĩnh nên chưa kết nối máy chủ lưu dữ liệu. Vui lòng mở ứng dụng qua{' '}
-            <strong>Dev URL</strong> hoặc triển khai (<strong>Deploy</strong>) lên Cloud Run để lưu chuyến xe và đồng bộ Google Sheet.
-          </span>
-        </div>
-      )}
 
       {errorMessage && (
         <div

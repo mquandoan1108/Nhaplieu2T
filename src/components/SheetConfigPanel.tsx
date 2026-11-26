@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Copy, Send, Save } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, Link2, Save, Send } from 'lucide-react';
 import { APPS_SCRIPT_TEMPLATE } from '../utils/appsScriptTemplate';
+import { getIsStaticHostMode } from '../utils/backendClient';
 
 interface SheetConfigPanelProps {
   appsScriptUrl: string;
@@ -19,6 +20,7 @@ export function SheetConfigPanel({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
@@ -142,6 +144,24 @@ export function SheetConfigPanel({
               <Send className="w-4 h-4" />
               <span>{testing ? 'Đang kiểm tra...' : 'Gửi thử kiểm tra'}</span>
             </button>
+
+            {getIsStaticHostMode() && urlInput.trim().startsWith('https://script.google.com') && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const shareUrl = `${window.location.origin}${window.location.pathname}?sheet=${encodeURIComponent(
+                    urlInput.trim()
+                  )}`;
+                  await navigator.clipboard.writeText(shareUrl);
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2500);
+                }}
+                className="min-h-[44px] inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-900 text-sm font-medium cursor-pointer"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-700" /> : <Link2 className="w-4 h-4" />}
+                <span>{copiedLink ? 'Đã chép link cho lái xe' : 'Sao chép link cho lái xe'}</span>
+              </button>
+            )}
           </div>
         </form>
 

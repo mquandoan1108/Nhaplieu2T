@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, Eye, EyeOff, Lock, X } from 'lucide-react';
-import { getApiFailureMessage, safeParseJson } from '../utils/safeFetchJson';
+import { loginAdmin } from '../utils/backendClient';
 
 interface AdminLoginModalProps {
   open: boolean;
@@ -23,20 +23,11 @@ export function AdminLoginModal({ open, onClose, onSuccess }: AdminLoginModalPro
     setSubmitting(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      const data = await safeParseJson<{ token?: string; username?: string; error?: string }>(res);
-      if (!res.ok || !data?.token || !data?.username) {
-        setError(getApiFailureMessage(res.status, data?.error, 'Đăng nhập không thành công.'));
-        return;
-      }
+      const result = await loginAdmin(username, password);
       setPassword('');
-      onSuccess(data.token, data.username);
-    } catch {
-      setError('Không thể kết nối máy chủ để xác thực.');
+      onSuccess(result.token, result.username);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đăng nhập không thành công.');
     } finally {
       setSubmitting(false);
     }
